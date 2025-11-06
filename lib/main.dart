@@ -16,7 +16,7 @@ import 'F.dart';
 
 // ============== НАСТРОЙКИ/КОНСТАНТЫ ==============
 
-const String baseUrl = "https://gm.sweetslicerush.online/";
+const String baseUrl = "https://yandex.ru";
 
 const String appsFlyerDevKey = "qsBLmy7dAXDQhowM8V3ca4";
 const String appsFlyerAppId = "6754987923"; // iOS App ID (без "id")
@@ -215,7 +215,7 @@ Future<DeviceData> collectRealDeviceData() async {
   language = locale.toLanguageTag();
 
   try {
-    timezone = "UTC"; // замените на плагин таймзоны при необходимости
+    timezone = "UTC";
   } catch (_) {
     timezone = "UTC";
   }
@@ -351,7 +351,6 @@ class _LoaderPainter extends CustomPainter {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // В iOS этот вызов отсутствует, поэтому не используем его.
   deviceData = await collectRealDeviceData();
 
   runApp(const MyApp());
@@ -379,8 +378,10 @@ class WebContainerScreen extends StatefulWidget {
 class _WebContainerScreenState extends State<WebContainerScreen> {
   InAppWebViewController? webController;
   final List<ContentBlocker> contentBlockers = [];
+
   bool showSplash = true;
-  bool showLoader = true; // единый флаг
+  bool showLoader = true; // показываем только один раз
+  bool hasShownInitialLoader = false; // запоминаем, что первичный лоадер уже был
   int keyCounter = 0;
 
   final trackingManager = TrackingManager();
@@ -391,55 +392,55 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
   void initState() {
     super.initState();
     initTracking();
+
     for (final adUrlFilter in FILT) {
       contentBlockers.add(ContentBlocker(
-          trigger: ContentBlockerTrigger(
-            urlFilter: adUrlFilter,
-          ),
-          action: ContentBlockerAction(
-            type: ContentBlockerActionType.BLOCK,
-          )));
+        trigger: ContentBlockerTrigger(urlFilter: adUrlFilter),
+        action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+      ));
     }
 
     contentBlockers.add(ContentBlocker(
       trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
-        //   ContentBlockerTriggerResourceType.IMAGE,
-
         ContentBlockerTriggerResourceType.RAW
       ]),
       action: ContentBlockerAction(
-          type: ContentBlockerActionType.BLOCK, selector: ".notification"),
+        type: ContentBlockerActionType.BLOCK,
+        selector: ".notification",
+      ),
     ));
 
     contentBlockers.add(ContentBlocker(
       trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
-        //   ContentBlockerTriggerResourceType.IMAGE,
-
         ContentBlockerTriggerResourceType.RAW
       ]),
       action: ContentBlockerAction(
-          type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-          selector: ".privacy-info"),
+        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+        selector: ".privacy-info",
+      ),
     ));
-    // apply the "display: none" style to some HTML elements
-    contentBlockers.add(ContentBlocker(
-        trigger: ContentBlockerTrigger(
-          urlFilter: ".*",
-        ),
-        action: ContentBlockerAction(
-            type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-            selector: ".banner, .banners, .ads, .ad, .advert")));
 
+    contentBlockers.add(ContentBlocker(
+      trigger: ContentBlockerTrigger(urlFilter: ".*"),
+      action: ContentBlockerAction(
+        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+        selector: ".banner, .banners, .ads, .ad, .advert",
+      ),
+    ));
 
     // Сплэш 2 сек
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() => showSplash = false);
-    });
 
-    // Страховка: скрыть лоадер через 12 сек, даже если веб молчит
-    _fallbackHideTimer = Timer(const Duration(seconds: 12), () {
-      if (mounted) setState(() => showLoader = false);
+      // включаем первичный лоадер сразу после сплэша (только если еще не показывали)
+      if (!hasShownInitialLoader) {
+        setState(() => showLoader = true);
+        // страховка на первый запуск
+        _fallbackHideTimer = Timer(const Duration(seconds: 12), () {
+          if (mounted) setState(() => showLoader = false);
+        });
+      }
     });
 
     // Запуск отправки трекинга через 6 сек
@@ -559,9 +560,10 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                                   ? args[0]['savedata']?.toString().toLowerCase()
                                   : null;
 
-                              // Если пришла savedata == "true" — прячем лоадер
                               if (saved == "true") {
                                 if (mounted) {
+                                  // скрываем первичный лоадер и больше его не показываем
+                                  hasShownInitialLoader = true;
                                   setState(() => showLoader = false);
                                 }
                               }
@@ -573,8 +575,8 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                         );
                       },
                       onLoadStart: (c, u) async {
-                        if (mounted) setState(() => showLoader = true);
-
+                        // ВАЖНО: больше НЕ включаем showLoader при навигации.
+                        // Оставляем обработку только внешних схем.
                         final uri = u;
                         if (uri != null) {
                           if (isPlainEmail(uri)) {
@@ -597,12 +599,21 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                         if (mounted) {
                           await sendDeviceInfo();
                           sendTrackingData();
-                          setState(() => showLoader = false); // скрываем после загрузки
+
+                          // Скрываем первичный лоадер при первой загрузке.
+                          if (!hasShownInitialLoader) {
+                            hasShownInitialLoader = true;
+                            setState(() => showLoader = false);
+                          }
                         }
                       },
                       onReceivedError: (c, req, err) async {
                         debugPrint("Web error: $err");
-                        if (mounted) setState(() => showLoader = false);
+                        // При ошибке скрываем первичный лоадер и считаем, что он уже показан.
+                        if (mounted && !hasShownInitialLoader) {
+                          hasShownInitialLoader = true;
+                          setState(() => showLoader = false);
+                        }
                       },
                       shouldOverrideUrlLoading: (c, action) async {
                         final uri = action.request.url;
@@ -700,7 +711,7 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                       },
                     ),
 
-                    // ЕДИНСТВЕННЫЙ оверлей-лоадер
+                    // Оверлей-лоадер, который показывается только на первом открытии
                     if (showLoader)
                       const Positioned.fill(
                         child: IgnorePointer(child: CustomLoader()),
