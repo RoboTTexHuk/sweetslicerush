@@ -12,11 +12,15 @@ import 'package:appsflyer_sdk/appsflyer_sdk.dart' as zax_fly;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import 'F.dart';
+// Если у вас есть свой список блокировок в F.dart — импортируйте его и замените FILT.
+// import 'F.dart';
+// Для автономного примера оставим пустой список:
+const List<String> FILT = [];
 
 // ============== НАСТРОЙКИ/КОНСТАНТЫ ==============
 
-const String baseUrl = "https://yandex.ru";
+const String baseUrl = "https://gm.sweetslicerush.online/";
+const String fallbackUrl = "https://play.famobi.com/slice-rush";
 
 const String appsFlyerDevKey = "qsBLmy7dAXDQhowM8V3ca4";
 const String appsFlyerAppId = "6754987923"; // iOS App ID (без "id")
@@ -350,9 +354,7 @@ class _LoaderPainter extends CustomPainter {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   deviceData = await collectRealDeviceData();
-
   runApp(const MyApp());
 }
 
@@ -369,6 +371,164 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ============== Fallback экран с InAppWebView и contentBlockers ==============
+
+class FallbackScreen extends StatefulWidget {
+  final List<ContentBlocker> contentBlockers;
+  const FallbackScreen({super.key, required this.contentBlockers});
+
+  @override
+  State<FallbackScreen> createState() => _FallbackScreenState();
+}
+
+class _FallbackScreenState extends State<FallbackScreen> {
+  InAppWebViewController? _controller;
+  bool _showLoader = true;
+@override
+  void initState() {
+  print("Loadenew ");
+    super.initState();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+
+        body: Stack(
+          children: [
+            InAppWebView(
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                disableDefaultErrorPage: true,
+                contentBlockers: widget.contentBlockers,
+                mediaPlaybackRequiresUserGesture: false,
+                allowsInlineMediaPlayback: true,
+                allowsPictureInPictureMediaPlayback: true,
+                useOnDownloadStart: true,
+                javaScriptCanOpenWindowsAutomatically: true,
+                useShouldOverrideUrlLoading: true,
+                supportMultipleWindows: true,
+                transparentBackground: false,
+                allowsBackForwardNavigationGestures: true,
+              ),
+              initialUrlRequest: URLRequest(url: WebUri(fallbackUrl)),
+              onWebViewCreated: (c) => _controller = c,
+              onLoadStop: (c, url) async {
+                if (mounted) setState(() => _showLoader = false);
+              },
+              onReceivedError: (c, req, err) async {
+                if (mounted) setState(() => _showLoader = false);
+              },
+              shouldOverrideUrlLoading: (c, action) async {
+                final uri = action.request.url;
+                if (uri == null) return NavigationActionPolicy.ALLOW;
+
+                if (isPlainEmail(uri)) {
+                  final mailtoUri = convertToMailto(uri);
+                  await openEmail(mailtoUri);
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                final scheme = uri.scheme.toLowerCase();
+
+                if (scheme == 'mailto') {
+                  await openEmail(uri);
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                if (scheme == 'tel') {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                if (isPlatformLink(uri)) {
+                  final webUri = convertToWebUri(uri);
+                  if (webUri.scheme == 'http' || webUri.scheme == 'https') {
+                    await openInBrowser(webUri);
+                  } else {
+                    try {
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else if (webUri != uri &&
+                          (webUri.scheme == 'http' || webUri.scheme == 'https')) {
+                        await openInBrowser(webUri);
+                      }
+                    } catch (_) {}
+                  }
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                if (scheme != 'http' && scheme != 'https') {
+                  return NavigationActionPolicy.CANCEL;
+                }
+
+                return NavigationActionPolicy.ALLOW;
+              },
+              onCreateWindow: (c, req) async {
+                final uri = req.request.url;
+                if (uri == null) return false;
+
+                if (isPlainEmail(uri)) {
+                  final mailtoUri = convertToMailto(uri);
+                  await openEmail(mailtoUri);
+                  return false;
+                }
+
+                final scheme = uri.scheme.toLowerCase();
+
+                if (scheme == 'mailto') {
+                  await openEmail(uri);
+                  return false;
+                }
+
+                if (scheme == 'tel') {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  return false;
+                }
+
+                if (isPlatformLink(uri)) {
+                  final webUri = convertToWebUri(uri);
+                  if (webUri.scheme == 'http' || webUri.scheme == 'https') {
+                    await openInBrowser(webUri);
+                  } else {
+                    try {
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else if (webUri != uri &&
+                          (webUri.scheme == 'http' || webUri.scheme == 'https')) {
+                        await openInBrowser(webUri);
+                      }
+                    } catch (_) {}
+                  }
+                  return false;
+                }
+
+                if (scheme == 'http' || scheme == 'https') {
+                  c.loadUrl(urlRequest: URLRequest(url: uri));
+                }
+                return false;
+              },
+              onDownloadStartRequest: (c, req) async {
+                await openInBrowser(req.url);
+              },
+            ),
+            if (_showLoader)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomLoader(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============== Главный экран с WebView ==============
+
 class WebContainerScreen extends StatefulWidget {
   const WebContainerScreen({super.key});
   @override
@@ -381,12 +541,14 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
 
   bool showSplash = true;
   bool showLoader = true; // показываем только один раз
-  bool hasShownInitialLoader = false; // запоминаем, что первичный лоадер уже был
+  bool hasShownInitialLoader = false; // первичный лоадер уже был?
+  bool savedataReceived = false; // пришел ли savedata от WebView?
   int keyCounter = 0;
 
   final trackingManager = TrackingManager();
   Timer? _sendTrackingTimer;
-  Timer? _fallbackHideTimer;
+  Timer? _fallbackHideLoader12sTimer; // страховка скрыть лоадер через 12 сек
+  Timer? _savedataWaitTimer; // 6-секундный таймер ожидания savedata
 
   @override
   void initState() {
@@ -394,56 +556,65 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
     initTracking();
 
     for (final adUrlFilter in FILT) {
-      contentBlockers.add(ContentBlocker(
-        trigger: ContentBlockerTrigger(urlFilter: adUrlFilter),
-        action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
-      ));
+      contentBlockers.add(
+        ContentBlocker(
+          trigger: ContentBlockerTrigger(urlFilter: adUrlFilter),
+          action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+        ),
+      );
     }
 
-    contentBlockers.add(ContentBlocker(
-      trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
-        ContentBlockerTriggerResourceType.RAW
-      ]),
-      action: ContentBlockerAction(
-        type: ContentBlockerActionType.BLOCK,
-        selector: ".notification",
+    contentBlockers.add(
+      ContentBlocker(
+        trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
+          ContentBlockerTriggerResourceType.RAW
+        ]),
+        action: ContentBlockerAction(
+          type: ContentBlockerActionType.BLOCK,
+          selector: ".notification",
+        ),
       ),
-    ));
+    );
 
-    contentBlockers.add(ContentBlocker(
-      trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
-        ContentBlockerTriggerResourceType.RAW
-      ]),
-      action: ContentBlockerAction(
-        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-        selector: ".privacy-info",
+    contentBlockers.add(
+      ContentBlocker(
+        trigger: ContentBlockerTrigger(urlFilter: ".cookie", resourceType: [
+          ContentBlockerTriggerResourceType.RAW
+        ]),
+        action: ContentBlockerAction(
+          type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+          selector: ".privacy-info",
+        ),
       ),
-    ));
+    );
 
-    contentBlockers.add(ContentBlocker(
-      trigger: ContentBlockerTrigger(urlFilter: ".*"),
-      action: ContentBlockerAction(
-        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
-        selector: ".banner, .banners, .ads, .ad, .advert",
+    contentBlockers.add(
+      ContentBlocker(
+        trigger: ContentBlockerTrigger(urlFilter: ".*"),
+        action: ContentBlockerAction(
+          type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+          selector: ".banner, .banners, .ads, .ad, .advert",
+        ),
       ),
-    ));
+    );
 
     // Сплэш 2 сек
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() => showSplash = false);
 
-      // включаем первичный лоадер сразу после сплэша (только если еще не показывали)
+      // Включаем первичный лоадер, если еще не показывали
       if (!hasShownInitialLoader) {
         setState(() => showLoader = true);
-        // страховка на первый запуск
-        _fallbackHideTimer = Timer(const Duration(seconds: 12), () {
+
+        // Страховка: скрыть лоадер через 12 сек (только на первую загрузку)
+        _fallbackHideLoader12sTimer = Timer(const Duration(seconds: 12), () {
           if (mounted) setState(() => showLoader = false);
         });
       }
     });
 
-    // Запуск отправки трекинга через 6 сек
+    // Запуск отправки трекинга через 6 сек (не влияет на savedata)
     _sendTrackingTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) {
         sendTrackingData();
@@ -454,7 +625,8 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
   @override
   void dispose() {
     _sendTrackingTimer?.cancel();
-    _fallbackHideTimer?.cancel();
+    _fallbackHideLoader12sTimer?.cancel();
+    _savedataWaitTimer?.cancel();
     super.dispose();
   }
 
@@ -515,6 +687,26 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
     return;
   }
 
+  void _startSavedataWaitTimerIfNeeded() {
+    // Запускаем 6-секундный таймер ожидания savedata только один раз, на первой загрузке.
+    if (_savedataWaitTimer != null || hasShownInitialLoader) return;
+
+    _savedataWaitTimer = Timer(const Duration(seconds: 6), () {
+      // Если за 6 секунд savedata так и не получили — переходим на FallbackScreen
+      if (mounted && !savedataReceived) {
+        hasShownInitialLoader = true;
+        showLoader = false;
+        _fallbackHideLoader12sTimer?.cancel();
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => FallbackScreen(contentBlockers: contentBlockers),
+          ),
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     setupNotificationHandler();
@@ -559,11 +751,13 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                               final saved = args.isNotEmpty
                                   ? args[0]['savedata']?.toString().toLowerCase()
                                   : null;
-
+                        print("Save data "+args[0]['savedata'].toString());
                               if (saved == "true") {
+                                savedataReceived = true;
                                 if (mounted) {
-                                  // скрываем первичный лоадер и больше его не показываем
                                   hasShownInitialLoader = true;
+                                  _savedataWaitTimer?.cancel();
+                                  _fallbackHideLoader12sTimer?.cancel();
                                   setState(() => showLoader = false);
                                 }
                               }
@@ -575,8 +769,6 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                         );
                       },
                       onLoadStart: (c, u) async {
-                        // ВАЖНО: больше НЕ включаем showLoader при навигации.
-                        // Оставляем обработку только внешних схем.
                         final uri = u;
                         if (uri != null) {
                           if (isPlainEmail(uri)) {
@@ -596,22 +788,30 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                           await c.evaluateJavascript(source: "console.log('Portal loaded!');");
                           debugPrint("Load my data $u");
                         } catch (_) {}
+
                         if (mounted) {
                           await sendDeviceInfo();
                           sendTrackingData();
 
-                          // Скрываем первичный лоадер при первой загрузке.
-                          if (!hasShownInitialLoader) {
+                          // Стартуем 6-секундное ожидание savedata только один раз,
+                          // на самой первой успешной загрузке.
+                          _startSavedataWaitTimerIfNeeded();
+
+                          // Если к этому моменту savedata уже прилетел (редко), снимем лоадер.
+                          if (!hasShownInitialLoader && savedataReceived) {
                             hasShownInitialLoader = true;
+                            _savedataWaitTimer?.cancel();
+                            _fallbackHideLoader12sTimer?.cancel();
                             setState(() => showLoader = false);
                           }
                         }
                       },
                       onReceivedError: (c, req, err) async {
                         debugPrint("Web error: $err");
-                        // При ошибке скрываем первичный лоадер и считаем, что он уже показан.
                         if (mounted && !hasShownInitialLoader) {
                           hasShownInitialLoader = true;
+                          _savedataWaitTimer?.cancel();
+                          _fallbackHideLoader12sTimer?.cancel();
                           setState(() => showLoader = false);
                         }
                       },
@@ -647,7 +847,9 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                             try {
                               if (await canLaunchUrl(uri) && mounted) {
                                 await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else if (webUri != uri && (webUri.scheme == 'http' || webUri.scheme == 'https') && mounted) {
+                              } else if (webUri != uri &&
+                                  (webUri.scheme == 'http' || webUri.scheme == 'https') &&
+                                  mounted) {
                                 await openInBrowser(webUri);
                               }
                             } catch (_) {}
@@ -693,7 +895,9 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                             try {
                               if (await canLaunchUrl(uri) && mounted) {
                                 await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else if (webUri != uri && (webUri.scheme == 'http' || webUri.scheme == 'https') && mounted) {
+                              } else if (webUri != uri &&
+                                  (webUri.scheme == 'http' || webUri.scheme == 'https') &&
+                                  mounted) {
                                 await openInBrowser(webUri);
                               }
                             } catch (_) {}
