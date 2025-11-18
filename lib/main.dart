@@ -12,6 +12,8 @@ import 'package:appsflyer_sdk/appsflyer_sdk.dart' as zax_fly;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'game.dart';
+
 // Если у вас есть свой список блокировок в F.dart — импортируйте его и замените FILT.
 // import 'F.dart';
 // Для автономного примера оставим пустой список:
@@ -752,14 +754,12 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
                                   ? args[0]['savedata']?.toString().toLowerCase()
                                   : null;
                         print("Save data "+args[0]['savedata'].toString());
-                              if (saved == "true") {
-                                savedataReceived = true;
-                                if (mounted) {
-                                  hasShownInitialLoader = true;
-                                  _savedataWaitTimer?.cancel();
-                                  _fallbackHideLoader12sTimer?.cancel();
-                                  setState(() => showLoader = false);
-                                }
+                              if (saved == "false") {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(builder: (context) =>WebContainerScreen2()),
+                                      (route) => false,
+                                );
                               }
                             } catch (e) {
                               debugPrint("onServerResponse parse error: $e");
