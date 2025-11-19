@@ -29,11 +29,43 @@ class _WebContainerScreen2State extends State<WebContainerScreen2> {
   Timer? _sendTrackingTimer;
   Timer? _fallbackHideLoader12sTimer; // страховка скрыть лоадер через 12 сек
   Timer? _savedataWaitTimer; // 6-секундный таймер ожидания savedata
-
+ List<String> _adCssSelectors = [
+    '.ad',
+    '.ads',
+    '.adsbox',
+    '.adsbygoogle',
+    '.ad-banner',
+    '.ad-container',
+    '.advert',
+    '.advertisement',
+    '.ad-unit',
+    '.sponsor',
+    '.sponsored',
+    '.promo',
+    '.rewarded-ad',
+    '.video-ad',
+    '.floating-ad',
+    '.sticky-ad',
+    '.prestitial',
+    '.interstitial',
+    '#ad',
+    '#ads',
+    '#banner',
+    '.banner',
+    '.game-ad',
+    '.start-screen-ad',
+    '.preloader-ad',
+    '[class*="ad-"]',
+    '[class*="-ad"]',
+    '[id*="ad-"]',
+    '[id*="-ad"]',
+    '[class*="promo"]',
+    '[id*="promo"]',
+  ];
   @override
   void initState() {
     super.initState();
-
+    initTracking();
 
     for (final adUrlFilter in FILT) {
       contentBlockers.add(
@@ -55,6 +87,20 @@ class _WebContainerScreen2State extends State<WebContainerScreen2> {
         ),
       ),
     );
+    ContentBlocker(
+      trigger:  ContentBlockerTrigger(urlFilter: '.*'),
+      action: ContentBlockerAction(
+        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+        selector: _adCssSelectors.join(','),
+      ),
+    );
+    ContentBlocker(
+    trigger: ContentBlockerTrigger(urlFilter: '.*'),
+    action: ContentBlockerAction(
+    type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+    selector:
+    '[class*="cookie"],[id*="cookie"],[class*="consent"],[id*="consent"],.privacy-info,.notification',
+    ),);
 
     contentBlockers.add(
       ContentBlocker(
@@ -105,7 +151,17 @@ class _WebContainerScreen2State extends State<WebContainerScreen2> {
     super.dispose();
   }
 
-
+  Future<void> initTracking() async {
+    try {
+      await trackingManager.init(
+        devKey: appsFlyerDevKey,
+        appId: appsFlyerAppId,
+        isDebug: true,
+      );
+    } catch (e) {
+      debugPrint("AppsFlyer init error: $e");
+    }
+  }
 
 
 
@@ -171,7 +227,7 @@ class _WebContainerScreen2State extends State<WebContainerScreen2> {
                         transparentBackground: false,
                         allowsBackForwardNavigationGestures: true,
                       ),
-                      initialUrlRequest: URLRequest(url: WebUri("https://play.famobi.com/slice-rush")),
+                      initialUrlRequest: URLRequest(url: WebUri(baseUrl)),
                       onWebViewCreated: (c) {
                         webController = c;
 
