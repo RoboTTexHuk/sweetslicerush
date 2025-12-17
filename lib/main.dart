@@ -22,7 +22,7 @@ const List<String> FILT = [];
 // ============== НАСТРОЙКИ/КОНСТАНТЫ ==============
 
 const String baseUrl = "https://gm.sweetslicerush.online/";
-const String fallbackUrl = "https://play.famobi.com/slice-rush";
+//const String fallbackUrl = "https://play.famobi.com/slice-rush";
 
 const String appsFlyerDevKey = "qsBLmy7dAXDQhowM8V3ca4";
 const String appsFlyerAppId = "6754987923"; // iOS App ID (без "id")
@@ -375,159 +375,7 @@ class MyApp extends StatelessWidget {
 
 // ============== Fallback экран с InAppWebView и contentBlockers ==============
 
-class FallbackScreen extends StatefulWidget {
-  final List<ContentBlocker> contentBlockers;
-  const FallbackScreen({super.key, required this.contentBlockers});
 
-  @override
-  State<FallbackScreen> createState() => _FallbackScreenState();
-}
-
-class _FallbackScreenState extends State<FallbackScreen> {
-  InAppWebViewController? _controller;
-  bool _showLoader = true;
-@override
-  void initState() {
-  print("Loadenew ");
-    super.initState();
-  }
-  @override
-  Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-
-        body: Stack(
-          children: [
-            InAppWebView(
-              initialSettings: InAppWebViewSettings(
-                javaScriptEnabled: true,
-                disableDefaultErrorPage: true,
-                contentBlockers: widget.contentBlockers,
-                mediaPlaybackRequiresUserGesture: false,
-                allowsInlineMediaPlayback: true,
-                allowsPictureInPictureMediaPlayback: true,
-                useOnDownloadStart: true,
-                javaScriptCanOpenWindowsAutomatically: true,
-                useShouldOverrideUrlLoading: true,
-                supportMultipleWindows: true,
-                transparentBackground: false,
-                allowsBackForwardNavigationGestures: true,
-              ),
-              initialUrlRequest: URLRequest(url: WebUri(fallbackUrl)),
-              onWebViewCreated: (c) => _controller = c,
-              onLoadStop: (c, url) async {
-                if (mounted) setState(() => _showLoader = false);
-              },
-              onReceivedError: (c, req, err) async {
-                if (mounted) setState(() => _showLoader = false);
-              },
-              shouldOverrideUrlLoading: (c, action) async {
-                final uri = action.request.url;
-                if (uri == null) return NavigationActionPolicy.ALLOW;
-
-                if (isPlainEmail(uri)) {
-                  final mailtoUri = convertToMailto(uri);
-                  await openEmail(mailtoUri);
-                  return NavigationActionPolicy.CANCEL;
-                }
-
-                final scheme = uri.scheme.toLowerCase();
-
-                if (scheme == 'mailto') {
-                  await openEmail(uri);
-                  return NavigationActionPolicy.CANCEL;
-                }
-
-                if (scheme == 'tel') {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  return NavigationActionPolicy.CANCEL;
-                }
-
-                if (isPlatformLink(uri)) {
-                  final webUri = convertToWebUri(uri);
-                  if (webUri.scheme == 'http' || webUri.scheme == 'https') {
-                    await openInBrowser(webUri);
-                  } else {
-                    try {
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      } else if (webUri != uri &&
-                          (webUri.scheme == 'http' || webUri.scheme == 'https')) {
-                        await openInBrowser(webUri);
-                      }
-                    } catch (_) {}
-                  }
-                  return NavigationActionPolicy.CANCEL;
-                }
-
-                if (scheme != 'http' && scheme != 'https') {
-                  return NavigationActionPolicy.CANCEL;
-                }
-
-                return NavigationActionPolicy.ALLOW;
-              },
-              onCreateWindow: (c, req) async {
-                final uri = req.request.url;
-                if (uri == null) return false;
-
-                if (isPlainEmail(uri)) {
-                  final mailtoUri = convertToMailto(uri);
-                  await openEmail(mailtoUri);
-                  return false;
-                }
-
-                final scheme = uri.scheme.toLowerCase();
-
-                if (scheme == 'mailto') {
-                  await openEmail(uri);
-                  return false;
-                }
-
-                if (scheme == 'tel') {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  return false;
-                }
-
-                if (isPlatformLink(uri)) {
-                  final webUri = convertToWebUri(uri);
-                  if (webUri.scheme == 'http' || webUri.scheme == 'https') {
-                    await openInBrowser(webUri);
-                  } else {
-                    try {
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      } else if (webUri != uri &&
-                          (webUri.scheme == 'http' || webUri.scheme == 'https')) {
-                        await openInBrowser(webUri);
-                      }
-                    } catch (_) {}
-                  }
-                  return false;
-                }
-
-                if (scheme == 'http' || scheme == 'https') {
-                  c.loadUrl(urlRequest: URLRequest(url: uri));
-                }
-                return false;
-              },
-              onDownloadStartRequest: (c, req) async {
-                await openInBrowser(req.url);
-              },
-            ),
-            if (_showLoader)
-              const Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomLoader(),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ============== Главный экран с WebView ==============
 
@@ -689,25 +537,7 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
     return;
   }
 
-  void _startSavedataWaitTimerIfNeeded() {
-    // Запускаем 6-секундный таймер ожидания savedata только один раз, на первой загрузке.
-    if (_savedataWaitTimer != null || hasShownInitialLoader) return;
 
-    _savedataWaitTimer = Timer(const Duration(seconds: 6), () {
-      // Если за 6 секунд savedata так и не получили — переходим на FallbackScreen
-      if (mounted && !savedataReceived) {
-        hasShownInitialLoader = true;
-        showLoader = false;
-        _fallbackHideLoader12sTimer?.cancel();
-
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => FallbackScreen(contentBlockers: contentBlockers),
-          ),
-        );
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -723,204 +553,205 @@ class _WebContainerScreenState extends State<WebContainerScreen> {
             if (!showSplash)
               Container(
                 color: Colors.black,
-                child: Stack(
-                  children: [
-                    InAppWebView(
-                      key: ValueKey(keyCounter),
-                      initialSettings: InAppWebViewSettings(
-                        javaScriptEnabled: true,
-                        disableDefaultErrorPage: true,
-                        contentBlockers: contentBlockers,
-                        mediaPlaybackRequiresUserGesture: false,
-                        allowsInlineMediaPlayback: true,
-                        allowsPictureInPictureMediaPlayback: true,
-                        useOnDownloadStart: true,
-                        javaScriptCanOpenWindowsAutomatically: true,
-                        useShouldOverrideUrlLoading: true,
-                        supportMultipleWindows: true,
-                        transparentBackground: false,
-                        allowsBackForwardNavigationGestures: true,
-                      ),
-                      initialUrlRequest: URLRequest(url: WebUri(baseUrl)),
-                      onWebViewCreated: (c) {
-                        webController = c;
-
-                        webController!.addJavaScriptHandler(
-                          handlerName: 'onServerResponse',
-                          callback: (args) {
-                            debugPrint("JS args: $args");
-                            try {
-                              final saved = args.isNotEmpty
-                                  ? args[0]['savedata']?.toString().toLowerCase()
-                                  : null;
-                        print("Save data "+args[0]['savedata'].toString());
-                              if (saved == "false") {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(builder: (context) =>WebContainerScreen2()),
-                                      (route) => false,
-                                );
+                child: SafeArea(
+                  child: Stack(
+                    children: [
+                      InAppWebView(
+                        key: ValueKey(keyCounter),
+                        initialSettings: InAppWebViewSettings(
+                          javaScriptEnabled: true,
+                          disableDefaultErrorPage: true,
+                          contentBlockers: contentBlockers,
+                          mediaPlaybackRequiresUserGesture: false,
+                          allowsInlineMediaPlayback: true,
+                          allowsPictureInPictureMediaPlayback: true,
+                          useOnDownloadStart: true,
+                          javaScriptCanOpenWindowsAutomatically: true,
+                          useShouldOverrideUrlLoading: true,
+                          supportMultipleWindows: true,
+                          transparentBackground: false,
+                          allowsBackForwardNavigationGestures: true,
+                        ),
+                        initialUrlRequest: URLRequest(url: WebUri(baseUrl)),
+                        onWebViewCreated: (c) {
+                          webController = c;
+                  
+                          webController!.addJavaScriptHandler(
+                            handlerName: 'onServerResponse',
+                            callback: (args) {
+                              debugPrint("JS args: $args");
+                              try {
+                  
+                                  final saved = args.isNotEmpty
+                                      ? args[0]['savedata']?.toString().toLowerCase()
+                                      : null;
+                  
+                                print("Save data 1111 "+saved.toString());
+                                if (saved== "false") {
+                  
+                                  print("Save data "+saved.toString());
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) =>WebContainerScreen2()),
+                                        (route) => false,
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint("onServerResponse parse error: $e");
                               }
-                            } catch (e) {
-                              debugPrint("onServerResponse parse error: $e");
+                              return args.toString();
+                            },
+                          );
+                        },
+                        onLoadStart: (c, u) async {
+                          final uri = u;
+                          if (uri != null) {
+                            if (isPlainEmail(uri)) {
+                              await tryStopLoading(c);
+                              final mailtoUri = convertToMailto(uri);
+                              if (mounted) await openEmail(mailtoUri);
+                              return;
                             }
-                            return args.toString();
-                          },
-                        );
-                      },
-                      onLoadStart: (c, u) async {
-                        final uri = u;
-                        if (uri != null) {
-                          if (isPlainEmail(uri)) {
-                            await tryStopLoading(c);
-                            final mailtoUri = convertToMailto(uri);
-                            if (mounted) await openEmail(mailtoUri);
-                            return;
+                            final scheme = uri.scheme.toLowerCase();
+                            if (scheme != 'http' && scheme != 'https') {
+                              await tryStopLoading(c);
+                            }
                           }
-                          final scheme = uri.scheme.toLowerCase();
-                          if (scheme != 'http' && scheme != 'https') {
-                            await tryStopLoading(c);
+                        },
+                        onLoadStop: (c, u) async {
+                          try {
+                            await c.evaluateJavascript(source: "console.log('Portal loaded!');");
+                            debugPrint("Load my data $u");
+                          } catch (_) {}
+                  
+                          if (mounted) {
+                            await sendDeviceInfo();
+                            sendTrackingData();
+                  
+                            // Стартуем 6-секундное ожидание savedata только один раз,
+                            // на самой первой успешной загрузке.
+                           //_startSavedataWaitTimerIfNeeded();
+                  
+                            // Если к этому моменту savedata уже прилетел (редко), снимем лоадер.
+                  
                           }
-                        }
-                      },
-                      onLoadStop: (c, u) async {
-                        try {
-                          await c.evaluateJavascript(source: "console.log('Portal loaded!');");
-                          debugPrint("Load my data $u");
-                        } catch (_) {}
-
-                        if (mounted) {
-                          await sendDeviceInfo();
-                          sendTrackingData();
-
-                          // Стартуем 6-секундное ожидание savedata только один раз,
-                          // на самой первой успешной загрузке.
-                          _startSavedataWaitTimerIfNeeded();
-
-                          // Если к этому моменту savedata уже прилетел (редко), снимем лоадер.
-                          if (!hasShownInitialLoader && savedataReceived) {
+                        },
+                        onReceivedError: (c, req, err) async {
+                          debugPrint("Web error: $err");
+                          if (mounted && !hasShownInitialLoader) {
                             hasShownInitialLoader = true;
                             _savedataWaitTimer?.cancel();
                             _fallbackHideLoader12sTimer?.cancel();
                             setState(() => showLoader = false);
                           }
-                        }
-                      },
-                      onReceivedError: (c, req, err) async {
-                        debugPrint("Web error: $err");
-                        if (mounted && !hasShownInitialLoader) {
-                          hasShownInitialLoader = true;
-                          _savedataWaitTimer?.cancel();
-                          _fallbackHideLoader12sTimer?.cancel();
-                          setState(() => showLoader = false);
-                        }
-                      },
-                      shouldOverrideUrlLoading: (c, action) async {
-                        final uri = action.request.url;
-                        if (uri == null) return NavigationActionPolicy.ALLOW;
-
-                        if (isPlainEmail(uri)) {
-                          final mailtoUri = convertToMailto(uri);
-                          if (mounted) await openEmail(mailtoUri);
-                          return NavigationActionPolicy.CANCEL;
-                        }
-
-                        final scheme = uri.scheme.toLowerCase();
-
-                        if (scheme == 'mailto') {
-                          if (mounted) await openEmail(uri);
-                          return NavigationActionPolicy.CANCEL;
-                        }
-
-                        if (scheme == 'tel') {
-                          if (mounted) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        },
+                        shouldOverrideUrlLoading: (c, action) async {
+                          final uri = action.request.url;
+                          if (uri == null) return NavigationActionPolicy.ALLOW;
+                  
+                          if (isPlainEmail(uri)) {
+                            final mailtoUri = convertToMailto(uri);
+                            if (mounted) await openEmail(mailtoUri);
+                            return NavigationActionPolicy.CANCEL;
                           }
-                          return NavigationActionPolicy.CANCEL;
-                        }
-
-                        if (isPlatformLink(uri)) {
-                          final webUri = convertToWebUri(uri);
-                          if (webUri.scheme == 'http' || webUri.scheme == 'https') {
-                            if (mounted) await openInBrowser(webUri);
-                          } else {
-                            try {
-                              if (await canLaunchUrl(uri) && mounted) {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else if (webUri != uri &&
-                                  (webUri.scheme == 'http' || webUri.scheme == 'https') &&
-                                  mounted) {
-                                await openInBrowser(webUri);
-                              }
-                            } catch (_) {}
+                  
+                          final scheme = uri.scheme.toLowerCase();
+                  
+                          if (scheme == 'mailto') {
+                            if (mounted) await openEmail(uri);
+                            return NavigationActionPolicy.CANCEL;
                           }
-                          return NavigationActionPolicy.CANCEL;
-                        }
-
-                        if (scheme != 'http' && scheme != 'https') {
-                          return NavigationActionPolicy.CANCEL;
-                        }
-
-                        return NavigationActionPolicy.ALLOW;
-                      },
-                      onCreateWindow: (c, req) async {
-                        final uri = req.request.url;
-                        if (uri == null) return false;
-
-                        if (isPlainEmail(uri)) {
-                          final mailtoUri = convertToMailto(uri);
-                          if (mounted) await openEmail(mailtoUri);
-                          return false;
-                        }
-
-                        final scheme = uri.scheme.toLowerCase();
-
-                        if (scheme == 'mailto') {
-                          if (mounted) await openEmail(uri);
-                          return false;
-                        }
-
-                        if (scheme == 'tel') {
-                          if (mounted) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  
+                          if (scheme == 'tel') {
+                            if (mounted) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                            return NavigationActionPolicy.CANCEL;
                           }
-                          return false;
-                        }
-
-                        if (isPlatformLink(uri)) {
-                          final webUri = convertToWebUri(uri);
-                          if (webUri.scheme == 'http' || webUri.scheme == 'https') {
-                            if (mounted) await openInBrowser(webUri);
-                          } else {
-                            try {
-                              if (await canLaunchUrl(uri) && mounted) {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else if (webUri != uri &&
-                                  (webUri.scheme == 'http' || webUri.scheme == 'https') &&
-                                  mounted) {
-                                await openInBrowser(webUri);
-                              }
-                            } catch (_) {}
+                  
+                          if (isPlatformLink(uri)) {
+                            final webUri = convertToWebUri(uri);
+                            if (webUri.scheme == 'http' || webUri.scheme == 'https') {
+                              if (mounted) await openInBrowser(webUri);
+                            } else {
+                              try {
+                                if (await canLaunchUrl(uri) && mounted) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                } else if (webUri != uri &&
+                                    (webUri.scheme == 'http' || webUri.scheme == 'https') &&
+                                    mounted) {
+                                  await openInBrowser(webUri);
+                                }
+                              } catch (_) {}
+                            }
+                            return NavigationActionPolicy.CANCEL;
+                          }
+                  
+                          if (scheme != 'http' && scheme != 'https') {
+                            return NavigationActionPolicy.CANCEL;
+                          }
+                  
+                          return NavigationActionPolicy.ALLOW;
+                        },
+                        onCreateWindow: (c, req) async {
+                          final uri = req.request.url;
+                          if (uri == null) return false;
+                  
+                          if (isPlainEmail(uri)) {
+                            final mailtoUri = convertToMailto(uri);
+                            if (mounted) await openEmail(mailtoUri);
+                            return false;
+                          }
+                  
+                          final scheme = uri.scheme.toLowerCase();
+                  
+                          if (scheme == 'mailto') {
+                            if (mounted) await openEmail(uri);
+                            return false;
+                          }
+                  
+                          if (scheme == 'tel') {
+                            if (mounted) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                            return false;
+                          }
+                  
+                          if (isPlatformLink(uri)) {
+                            final webUri = convertToWebUri(uri);
+                            if (webUri.scheme == 'http' || webUri.scheme == 'https') {
+                              if (mounted) await openInBrowser(webUri);
+                            } else {
+                              try {
+                                if (await canLaunchUrl(uri) && mounted) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                } else if (webUri != uri &&
+                                    (webUri.scheme == 'http' || webUri.scheme == 'https') &&
+                                    mounted) {
+                                  await openInBrowser(webUri);
+                                }
+                              } catch (_) {}
+                            }
+                            return false;
+                          }
+                  
+                          if (scheme == 'http' || scheme == 'https') {
+                            c.loadUrl(urlRequest: URLRequest(url: uri));
                           }
                           return false;
-                        }
-
-                        if (scheme == 'http' || scheme == 'https') {
-                          c.loadUrl(urlRequest: URLRequest(url: uri));
-                        }
-                        return false;
-                      },
-                      onDownloadStartRequest: (c, req) async {
-                        if (mounted) await openInBrowser(req.url);
-                      },
-                    ),
-
-                    // Оверлей-лоадер, который показывается только на первом открытии
-                    if (showLoader)
-                      const Positioned.fill(
-                        child: IgnorePointer(child: CustomLoader()),
+                        },
+                        onDownloadStartRequest: (c, req) async {
+                          if (mounted) await openInBrowser(req.url);
+                        },
                       ),
-                  ],
+                  
+                      // Оверлей-лоадер, который показывается только на первом открытии
+                      if (showLoader)
+                        const Positioned.fill(
+                          child: IgnorePointer(child: CustomLoader()),
+                        ),
+                    ],
+                  ),
                 ),
               ),
           ],
